@@ -1,6 +1,9 @@
 package token
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 type Clock interface {
 	Now() time.Time
@@ -18,26 +21,24 @@ type Limiter struct {
 	clock                  Clock
 }
 
-func NewLimiter(capacity, rate float64) *Limiter {
-	clock := realClock{}
-
-	return &Limiter{
-		capacity:     capacity,
-		tokens:       capacity,
-		rate:         rate,
-		clock:        clock,
-		lastRefillAt: clock.Now(),
-	}
+func NewLimiter(capacity, rate float64) (*Limiter, error) {
+	return NewLimiterWithClock(capacity, rate, realClock{})
 }
 
-func NewLimiterWithClock(capacity, rate float64, clock Clock) *Limiter {
+func NewLimiterWithClock(capacity, rate float64, clock Clock) (*Limiter, error) {
+	if capacity < 0 {
+		return nil, fmt.Errorf("capacity must be greater than zero")
+	}
+	if rate < 0 {
+		return nil, fmt.Errorf("rate must be greater than zero")
+	}
 	return &Limiter{
 		capacity:     capacity,
 		tokens:       capacity,
 		rate:         rate,
 		clock:        clock,
 		lastRefillAt: clock.Now(),
-	}
+	}, nil
 }
 
 func (lim *Limiter) Allow() bool {

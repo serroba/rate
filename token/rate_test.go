@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/serroba/rate/token"
+	"github.com/stretchr/testify/require"
 )
 
 type testClock struct {
@@ -34,8 +35,8 @@ func TestLimiter_Allow(t *testing.T) {
 		advanceBy        time.Duration
 		want             bool
 	}{
-		{name: "Test basic", fields: fields{capacity: 0, rate: 1}, want: false},
-		{name: "Test basic", fields: fields{capacity: 1, rate: 1}, want: true},
+		{name: "Test with zero capacity", fields: fields{capacity: 0, rate: 1}, want: false},
+		{name: "Test with capacity of one", fields: fields{capacity: 1, rate: 1}, want: true},
 		{
 			name:             "Test After 1 attempt",
 			fields:           fields{capacity: 1, rate: 1},
@@ -58,7 +59,8 @@ func TestLimiter_Allow(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			lim := token.NewLimiterWithClock(tt.fields.capacity, tt.fields.rate, clock)
+			lim, err := token.NewLimiterWithClock(tt.fields.capacity, tt.fields.rate, clock)
+			require.NoError(t, err)
 			for range tt.previousAttempts {
 				lim.Allow()
 			}
