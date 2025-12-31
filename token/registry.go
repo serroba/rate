@@ -1,7 +1,6 @@
 package token
 
 import (
-	"fmt"
 	"sync"
 )
 
@@ -10,19 +9,15 @@ type (
 	Registry   struct {
 		mu             sync.Mutex
 		limiters       map[Identifier]*Limiter
-		capacity, rate float64
+		capacity, rate uint32
 	}
 )
 
-func NewRegistry(capacity, rate float64, users ...Identifier) (*Registry, error) {
+func NewRegistry(capacity, rate uint32, users ...Identifier) (*Registry, error) {
 	limiters := make(map[Identifier]*Limiter)
 
 	for _, user := range users {
-		limiter, err := NewLimiter(capacity, rate)
-		if err != nil {
-			return nil, fmt.Errorf("fail to create a new limiter %w", err)
-		}
-
+		limiter := NewLimiter(capacity, rate)
 		limiters[user] = limiter
 	}
 
@@ -39,7 +34,7 @@ func (r *Registry) Allow(key Identifier) bool {
 
 	lim, ok := r.limiters[key]
 	if !ok {
-		lim, _ = NewLimiter(r.capacity, r.rate)
+		lim = NewLimiter(r.capacity, r.rate)
 		r.limiters[key] = lim
 	}
 

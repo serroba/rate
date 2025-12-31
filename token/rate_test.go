@@ -22,28 +22,9 @@ func (c *testClock) advance(by time.Duration) {
 	c.now = c.now.Add(by)
 }
 
-func TestNewLimiter(t *testing.T) {
-	lim, err := token.NewLimiter(5, 2)
-	require.NoError(t, err)
-	require.True(t, lim.Allow())
-}
-
-func TestNewLimiterWithClock_NegativeCapacity(t *testing.T) {
-	clock := &testClock{now: time.Now()}
-	_, err := token.NewLimiterWithClock(-1, 2, clock)
-	require.Error(t, err)
-}
-
-func TestNewLimiterWithClock_NegativeRate(t *testing.T) {
-	clock := &testClock{now: time.Now()}
-	_, err := token.NewLimiterWithClock(5, -1, clock)
-	require.Error(t, err)
-}
-
 func TestLimiter_Allow_ClockGoesBackwards(t *testing.T) {
 	clock := &testClock{now: time.Now()}
-	lim, err := token.NewLimiterWithClock(1, 1, clock)
-	require.NoError(t, err)
+	lim := token.NewLimiterWithClock(1, 1, clock)
 
 	// Drain the token
 	require.True(t, lim.Allow())
@@ -56,8 +37,8 @@ func TestLimiter_Allow_ClockGoesBackwards(t *testing.T) {
 
 func TestLimiter_Allow(t *testing.T) {
 	type fields struct {
-		capacity float64
-		rate     float64
+		capacity uint32
+		rate     uint32
 	}
 
 	clock := &testClock{now: time.Now()}
@@ -93,8 +74,7 @@ func TestLimiter_Allow(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			lim, err := token.NewLimiterWithClock(tt.fields.capacity, tt.fields.rate, clock)
-			require.NoError(t, err)
+			lim := token.NewLimiterWithClock(tt.fields.capacity, tt.fields.rate, clock)
 
 			for range tt.previousAttempts {
 				lim.Allow()
@@ -110,8 +90,7 @@ func TestLimiter_Allow(t *testing.T) {
 }
 
 func TestLimiter_Allow_Concurrent(t *testing.T) {
-	lim, err := token.NewLimiter(100, 0)
-	require.NoError(t, err)
+	lim := token.NewLimiter(100, 0)
 
 	var (
 		allowed atomic.Int64
@@ -139,12 +118,16 @@ func TestLimiter_Allow_Concurrent(t *testing.T) {
 }
 
 func TestLimiter_Allow_ConcurrentWithRefill(t *testing.T) {
-	lim, err := token.NewLimiter(10, 1000)
-	require.NoError(t, err)
+	clock := &testClock{now: time.Now()}
+	lim := token.NewLimiterWithClock(10, 1000, clock)
 
-	var wg sync.WaitGroup
+	var (
+		allowed atomic.Int64
+		wg      sync.WaitGroup
+	)
 
 	// Hammer the limiter from multiple goroutines
+	// Clock doesn't advance, so no refill happens - exactly 10 should be allowed
 	for range 100 {
 		wg.Add(1)
 
@@ -152,11 +135,14 @@ func TestLimiter_Allow_ConcurrentWithRefill(t *testing.T) {
 			defer wg.Done()
 
 			for range 100 {
-				lim.Allow()
+				if lim.Allow() {
+					allowed.Add(1)
+				}
 			}
 		}()
 	}
 
 	wg.Wait()
-	// If we get here without race detector complaints, the test passes
+
+	require.Equal(t, int64(10), allowed.Load())
 }

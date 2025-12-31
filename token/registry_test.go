@@ -22,16 +22,6 @@ func TestNewRegistry_WithUsers(t *testing.T) {
 	require.NotNil(t, reg)
 }
 
-func TestNewRegistry_InvalidCapacity(t *testing.T) {
-	_, err := token.NewRegistry(-1, 2, "alice")
-	require.Error(t, err)
-}
-
-func TestNewRegistry_InvalidRate(t *testing.T) {
-	_, err := token.NewRegistry(10, -1, "alice")
-	require.Error(t, err)
-}
-
 func TestRegistry_Allow_ExistingUser(t *testing.T) {
 	reg, err := token.NewRegistry(2, 0, "alice")
 	require.NoError(t, err)
