@@ -20,6 +20,38 @@ func (c *testClock) advance(by time.Duration) {
 	c.now = c.now.Add(by)
 }
 
+func TestNewLimiter(t *testing.T) {
+	lim, err := token.NewLimiter(5, 2)
+	require.NoError(t, err)
+	require.True(t, lim.Allow())
+}
+
+func TestNewLimiterWithClock_NegativeCapacity(t *testing.T) {
+	clock := &testClock{now: time.Now()}
+	_, err := token.NewLimiterWithClock(-1, 2, clock)
+	require.Error(t, err)
+}
+
+func TestNewLimiterWithClock_NegativeRate(t *testing.T) {
+	clock := &testClock{now: time.Now()}
+	_, err := token.NewLimiterWithClock(5, -1, clock)
+	require.Error(t, err)
+}
+
+func TestLimiter_Allow_ClockGoesBackwards(t *testing.T) {
+	clock := &testClock{now: time.Now()}
+	lim, err := token.NewLimiterWithClock(1, 1, clock)
+	require.NoError(t, err)
+
+	// Drain the token
+	require.True(t, lim.Allow())
+
+	// Move clock backwards - should not refill
+	clock.now = clock.now.Add(-1 * time.Second)
+
+	require.False(t, lim.Allow())
+}
+
 func TestLimiter_Allow(t *testing.T) {
 	type fields struct {
 		capacity float64
