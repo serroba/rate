@@ -1,6 +1,8 @@
 package token_test
 
 import (
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -105,4 +107,49 @@ func TestLimiter_Allow(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestLimiter_Allow_Concurrent(t *testing.T) {
+	lim, err := token.NewLimiter(100, 0)
+	require.NoError(t, err)
+
+	var allowed atomic.Int64
+	var wg sync.WaitGroup
+
+	// Launch 200 goroutines, but only 100 should be allowed
+	for range 200 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if lim.Allow() {
+				allowed.Add(1)
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	// With capacity 100 and rate 0, exactly 100 should be allowed
+	require.Equal(t, int64(100), allowed.Load(), "expected exactly 100 requests to be allowed")
+}
+
+func TestLimiter_Allow_ConcurrentWithRefill(t *testing.T) {
+	lim, err := token.NewLimiter(10, 1000)
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+
+	// Hammer the limiter from multiple goroutines
+	for range 100 {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for range 100 {
+				lim.Allow()
+			}
+		}()
+	}
+
+	wg.Wait()
+	// If we get here without race detector complaints, the test passes
 }
