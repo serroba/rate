@@ -20,6 +20,7 @@ type Limiter struct {
 
 func NewLimiter(capacity, rate float64) *Limiter {
 	clock := realClock{}
+
 	return &Limiter{
 		capacity:     capacity,
 		tokens:       capacity,
@@ -41,10 +42,13 @@ func NewLimiterWithClock(capacity, rate float64, clock Clock) *Limiter {
 
 func (lim *Limiter) Allow() bool {
 	lim.refill()
+
 	if lim.tokens >= 1 {
 		lim.tokens--
+
 		return true
 	}
+
 	return false
 }
 
@@ -53,6 +57,7 @@ func (lim *Limiter) refill() {
 	if t.Before(lim.lastRefillAt) {
 		return
 	}
+
 	lim.tokens = min(lim.capacity, lim.tokens+t.Sub(lim.lastRefillAt).Seconds()*lim.rate)
 	lim.lastRefillAt = t
 }
