@@ -61,6 +61,7 @@ func TestLimiter_Allow(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			lim, err := token.NewLimiterWithClock(tt.fields.capacity, tt.fields.rate, clock)
 			require.NoError(t, err)
+
 			for range tt.previousAttempts {
 				lim.Allow()
 			}
