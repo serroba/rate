@@ -2,6 +2,7 @@ package token
 
 import (
 	"errors"
+	"sync"
 	"time"
 )
 
@@ -18,6 +19,7 @@ func (c realClock) Now() time.Time {
 // Limiter implements a token bucket rate limiter. It allows a burst of
 // requests up to capacity, then refills tokens at the specified rate per second.
 type Limiter struct {
+	mu                     sync.Mutex
 	capacity, tokens, rate float64
 	lastRefillAt           time.Time
 	clock                  clock
@@ -54,6 +56,9 @@ func NewLimiterWithClock(capacity, rate float64, clock clock) (*Limiter, error) 
 // available and returns true. If no tokens are available, it returns false
 // without blocking.
 func (lim *Limiter) Allow() bool {
+	lim.mu.Lock()
+	defer lim.mu.Unlock()
+
 	lim.refill()
 
 	if lim.tokens >= 1 {
