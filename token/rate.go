@@ -1,7 +1,6 @@
 package token
 
 import (
-	"errors"
 	"sync"
 	"time"
 )
@@ -27,29 +26,20 @@ type Limiter struct {
 
 // NewLimiter creates a new rate limiter with the given capacity and refill rate.
 // Capacity is the maximum burst size. Rate is tokens added per second.
-// Returns an error if capacity or rate is negative.
-func NewLimiter(capacity, rate float64) (*Limiter, error) {
+func NewLimiter(capacity, rate uint32) *Limiter {
 	return NewLimiterWithClock(capacity, rate, realClock{})
 }
 
 // NewLimiterWithClock creates a new rate limiter with a custom clock.
 // Use this constructor for testing with a mock clock.
-func NewLimiterWithClock(capacity, rate float64, clock clock) (*Limiter, error) {
-	if capacity < 0 {
-		return nil, errors.New("capacity must be greater than zero")
-	}
-
-	if rate < 0 {
-		return nil, errors.New("rate must be greater than zero")
-	}
-
+func NewLimiterWithClock(capacity, rate uint32, clock clock) *Limiter {
 	return &Limiter{
-		capacity:     capacity,
-		tokens:       capacity,
-		rate:         rate,
+		capacity:     float64(capacity),
+		tokens:       float64(capacity),
+		rate:         float64(rate),
 		clock:        clock,
 		lastRefillAt: clock.Now(),
-	}, nil
+	}
 }
 
 // Allow reports whether a request is allowed. It consumes one token if

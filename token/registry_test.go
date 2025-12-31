@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/serroba/rate/token"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -19,16 +20,6 @@ func TestNewRegistry_WithUsers(t *testing.T) {
 	reg, err := token.NewRegistry(10, 2, "alice", "bob")
 	require.NoError(t, err)
 	require.NotNil(t, reg)
-}
-
-func TestNewRegistry_InvalidCapacity(t *testing.T) {
-	_, err := token.NewRegistry(-1, 2, "alice")
-	require.Error(t, err)
-}
-
-func TestNewRegistry_InvalidRate(t *testing.T) {
-	_, err := token.NewRegistry(10, -1, "alice")
-	require.Error(t, err)
 }
 
 func TestRegistry_Allow_ExistingUser(t *testing.T) {
@@ -94,6 +85,41 @@ func TestRegistry_Allow_Concurrent(t *testing.T) {
 	require.Equal(t, int64(200), allowed.Load())
 }
 
+func TestRegistry_Deny_Concurrent(t *testing.T) {
+	reg, err := token.NewRegistry(100, 0)
+	require.NoError(t, err)
+
+	var (
+		allowed atomic.Int64
+		deny    atomic.Int64
+		wg      sync.WaitGroup
+	)
+
+	// 50 goroutines per user, 4 users = 200 goroutines
+	users := []token.Identifier{"alice", "bob", "charlie", "diana"}
+	for _, user := range users {
+		for range 110 {
+			wg.Add(1)
+
+			go func(u token.Identifier) {
+				defer wg.Done()
+
+				if reg.Allow(u) {
+					allowed.Add(1)
+				} else {
+					deny.Add(1)
+				}
+			}(user)
+		}
+	}
+
+	wg.Wait()
+
+	// Each user has capacity 100, only 50 requests each, so all should be allowed
+	assert.Equal(t, int64(400), allowed.Load())
+	assert.Equal(t, int64(40), deny.Load())
+}
+
 func TestRegistry_Allow_ConcurrentNewUsers(t *testing.T) {
 	reg, err := token.NewRegistry(5, 0)
 	require.NoError(t, err)
@@ -107,7 +133,7 @@ func TestRegistry_Allow_ConcurrentNewUsers(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 
-			user := token.Identifier(string(rune('a' + id%26)))
+			user := token.Identifier(rune('a' + id%26))
 			reg.Allow(user)
 		}(i)
 	}
