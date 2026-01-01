@@ -1,4 +1,4 @@
-package token_test
+package bucket_test
 
 import (
 	"sync"
@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/serroba/rate/token"
+	"github.com/serroba/rate/bucket"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,9 +24,9 @@ func (c *testClock) advance(by time.Duration) {
 
 func TestLimiter_Allow_ClockGoesBackwards(t *testing.T) {
 	clock := &testClock{now: time.Now()}
-	lim := token.NewLimiterWithClock(1, 1, clock)
+	lim := bucket.NewLimiterWithClock(1, 1, clock)
 
-	// Drain the token
+	// Drain the bucket
 	require.True(t, lim.Allow())
 
 	// Move clock backwards - should not refill
@@ -74,7 +74,7 @@ func TestLimiter_Allow(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			lim := token.NewLimiterWithClock(tt.fields.capacity, tt.fields.rate, clock)
+			lim := bucket.NewLimiterWithClock(tt.fields.capacity, tt.fields.rate, clock)
 
 			for range tt.previousAttempts {
 				lim.Allow()
@@ -90,7 +90,7 @@ func TestLimiter_Allow(t *testing.T) {
 }
 
 func TestLimiter_Allow_Concurrent(t *testing.T) {
-	lim := token.NewLimiter(100, 0)
+	lim := bucket.NewLimiter(100, 0)
 
 	var (
 		allowed atomic.Int64
@@ -119,7 +119,7 @@ func TestLimiter_Allow_Concurrent(t *testing.T) {
 
 func TestLimiter_Allow_ConcurrentWithRefill(t *testing.T) {
 	clock := &testClock{now: time.Now()}
-	lim := token.NewLimiterWithClock(10, 1000, clock)
+	lim := bucket.NewLimiterWithClock(10, 1000, clock)
 
 	var (
 		allowed atomic.Int64
