@@ -17,13 +17,13 @@ type Limiter interface {
 	Allow() bool
 }
 
-type LimiterFactory func(key Identifier) Limiter
+type LimiterFactory func() Limiter
 
 func NewRegistry(factory LimiterFactory, keys ...Identifier) (*Registry, error) {
 	limiters := make(map[Identifier]Limiter)
 
 	for _, key := range keys {
-		limiters[key] = factory(key)
+		limiters[key] = factory()
 	}
 
 	return &Registry{
@@ -38,7 +38,7 @@ func (r *Registry) Allow(key Identifier) bool {
 
 	lim, ok := r.limiters[key]
 	if !ok {
-		lim = r.factory(key)
+		lim = r.factory()
 		r.limiters[key] = lim
 	}
 

@@ -17,7 +17,7 @@ var strategies = []struct {
 	{
 		name: "token",
 		factory: func(capacity, rate uint32) bucket.LimiterFactory {
-			return func(bucket.Identifier) bucket.Limiter {
+			return func() bucket.Limiter {
 				return bucket.NewTokenLimiter(capacity, rate)
 			}
 		},
@@ -25,7 +25,7 @@ var strategies = []struct {
 	{
 		name: "leaky",
 		factory: func(capacity, rate uint32) bucket.LimiterFactory {
-			return func(bucket.Identifier) bucket.Limiter {
+			return func() bucket.Limiter {
 				return bucket.NewLeakyLimiter(capacity, rate)
 			}
 		},
@@ -171,7 +171,6 @@ func TestRegistry_Deny_Concurrent(t *testing.T) {
 				wg      sync.WaitGroup
 			)
 
-			// 50 goroutines per user, 4 users = 200 goroutines
 			users := []bucket.Identifier{"alice", "bob", "charlie", "diana"}
 			for _, user := range users {
 				for range 110 {
@@ -191,7 +190,6 @@ func TestRegistry_Deny_Concurrent(t *testing.T) {
 
 			wg.Wait()
 
-			// Each user has capacity 100, only 50 requests each, so all should be allowed
 			assert.Equal(t, int64(400), allowed.Load())
 			assert.Equal(t, int64(40), deny.Load())
 		})
@@ -199,25 +197,31 @@ func TestRegistry_Deny_Concurrent(t *testing.T) {
 }
 
 func TestRegistry_Allow_ConcurrentNewUsers(t *testing.T) {
-	reg, err := bucket.NewRegistry(func(bucket.Identifier) bucket.Limiter {
-		return bucket.NewTokenLimiter(5, 0)
-	})
-	require.NoError(t, err)
+	t.Parallel()
 
-	var wg sync.WaitGroup
+	for _, s := range strategies {
+		t.Run(s.name, func(t *testing.T) {
+			t.Parallel()
 
-	// Create 100 different users concurrently
-	for i := range 100 {
-		wg.Add(1)
+			reg, err := bucket.NewRegistry(s.factory(5, 0))
+			require.NoError(t, err)
 
-		go func(id int) {
-			defer wg.Done()
+			var wg sync.WaitGroup
 
-			user := bucket.Identifier(rune('a' + id%26))
-			reg.Allow(user)
-		}(i)
+			// Create 100 different users concurrently
+			for i := range 100 {
+				wg.Add(1)
+
+				go func(id int) {
+					defer wg.Done()
+
+					user := bucket.Identifier(rune('a' + id%26))
+					reg.Allow(user)
+				}(i)
+			}
+
+			wg.Wait()
+			// If we get here without panic or race, the test passes
+		})
 	}
-
-	wg.Wait()
-	// If we get here without panic or race, the test passes
 }

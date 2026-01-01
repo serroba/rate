@@ -42,7 +42,7 @@ func TestLeakyLimiter_Allow(t *testing.T) {
 	}
 }
 
-func TestWithConcurrency(t *testing.T) {
+func TestLeakyLimiter_Allow_Concurrent(t *testing.T) {
 	var (
 		allow atomic.Int64
 		deny  atomic.Int64

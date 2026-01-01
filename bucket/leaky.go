@@ -5,6 +5,9 @@ import (
 	"time"
 )
 
+// LeakyLimiter implements a leaky bucket rate limiter. Requests fill the bucket,
+// which drains at a constant rate. If the bucket is full, requests are rejected.
+// Unlike TokenLimiter, this enforces a smooth output rate rather than allowing bursts.
 type LeakyLimiter struct {
 	mu sync.Mutex
 
@@ -12,6 +15,8 @@ type LeakyLimiter struct {
 	lastUpdatedAt         time.Time
 }
 
+// NewLeakyLimiter creates a new leaky bucket limiter.
+// Capacity is the maximum bucket size. Rate is how many requests drain per second.
 func NewLeakyLimiter(capacity, rate uint32) *LeakyLimiter {
 	return &LeakyLimiter{
 		capacity:      float64(capacity),
@@ -30,6 +35,9 @@ func (lim *LeakyLimiter) update() {
 	lim.lastUpdatedAt = t
 }
 
+// Allow reports whether a request is allowed. It adds one to the bucket level
+// if there is room and returns true. If the bucket is full, it returns false
+// without blocking.
 func (lim *LeakyLimiter) Allow() bool {
 	lim.mu.Lock()
 	defer lim.mu.Unlock()
