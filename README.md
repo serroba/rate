@@ -5,11 +5,12 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/serroba/rate)](https://goreportcard.com/report/github.com/serroba/rate)
 [![Go Reference](https://pkg.go.dev/badge/github.com/serroba/rate.svg)](https://pkg.go.dev/github.com/serroba/rate)
 
-A production-ready rate limiting library for Go with multiple algorithm implementations. Thread-safe, zero dependencies (beyond testing), and designed for high-throughput applications.
+A rate limiting library and web middleware for Go with multiple algorithm implementations. Thread-safe, zero dependencies (beyond testing), and designed for high-throughput applications.
 
 ## Features
 
 - **Multiple Algorithms** - Token Bucket, Leaky Bucket, Fixed Window, Sliding Window, and GCRA
+- **HTTP Middleware** - Ready-to-use middleware for `net/http`
 - **Thread-Safe** - All implementations are safe for concurrent use
 - **Zero Dependencies** - No external dependencies for production use
 - **Registry Support** - Built-in per-key rate limiting (e.g., per-user, per-IP)
@@ -125,6 +126,53 @@ if reg.Allow("user-456") {
     // Different user, different bucket
 }
 ```
+
+## HTTP Middleware
+
+Ready-to-use middleware for `net/http`:
+
+```go
+import (
+    "net/http"
+    "github.com/serroba/rate/bucket"
+    "github.com/serroba/rate/middleware"
+    "github.com/serroba/rate/registry"
+)
+
+func main() {
+    // Create a registry with your preferred algorithm
+    reg, _ := registry.NewRegistry(func() registry.Limiter {
+        return bucket.NewTokenLimiter(100, 10) // 100 burst, 10/sec refill
+    })
+
+    // Wrap your handler with rate limiting (uses client IP by default)
+    handler := middleware.RateLimiter(reg, nil)(yourHandler)
+
+    http.ListenAndServe(":8080", handler)
+}
+```
+
+### Custom Key Extraction
+
+Rate limit by API key, user ID, or any request attribute:
+
+```go
+// Rate limit by API key header
+keyFunc := middleware.HeaderKeyFunc("X-Api-Key")
+handler := middleware.RateLimiter(reg, keyFunc)(yourHandler)
+
+// Or implement your own KeyFunc
+customKeyFunc := func(r *http.Request) registry.Identifier {
+    return registry.Identifier(r.URL.Path) // Rate limit per endpoint
+}
+```
+
+### Key Extractors
+
+| Function              | Description                                                        |
+|-----------------------|--------------------------------------------------------------------|
+| `IPKeyFunc`           | Extracts client IP (checks X-Forwarded-For, X-Real-IP, RemoteAddr) |
+| `HeaderKeyFunc(name)` | Extracts value from specified header                               |
 
 ## Testing
 
