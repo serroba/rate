@@ -1,4 +1,4 @@
-package bucket
+package registry
 
 import (
 	"sync"

@@ -1,45 +1,89 @@
-package bucket_test
+package registry_test
 
 import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/serroba/rate/bucket"
+	"github.com/serroba/rate/registry"
+	"github.com/serroba/rate/window"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-var strategies = []struct {
-	name    string
-	factory func(capacity, rate uint32) bucket.LimiterFactory
-}{
-	{
-		name: "token",
-		factory: func(capacity, rate uint32) bucket.LimiterFactory {
-			return func() bucket.Limiter {
-				return bucket.NewTokenLimiter(capacity, rate)
-			}
-		},
-	},
-	{
-		name: "leaky",
-		factory: func(capacity, rate uint32) bucket.LimiterFactory {
-			return func() bucket.Limiter {
-				return bucket.NewLeakyLimiter(capacity, rate)
-			}
-		},
-	},
+// StrategyConfig defines how to build a limiter factory for a specific strategy.
+type StrategyConfig interface {
+	Name() string
+	Build() registry.LimiterFactory
+}
+
+// TokenBucketConfig configures a token bucket rate limiter.
+type TokenBucketConfig struct {
+	Capacity uint32
+	Rate     uint32
+}
+
+func (c TokenBucketConfig) Name() string { return "token bucket" }
+
+func (c TokenBucketConfig) Build() registry.LimiterFactory {
+	return func() registry.Limiter {
+		return bucket.NewTokenLimiter(c.Capacity, c.Rate)
+	}
+}
+
+// LeakyBucketConfig configures a leaky bucket rate limiter.
+type LeakyBucketConfig struct {
+	Capacity uint32
+	Rate     uint32
+}
+
+func (c LeakyBucketConfig) Name() string { return "leaky bucket" }
+
+func (c LeakyBucketConfig) Build() registry.LimiterFactory {
+	return func() registry.Limiter {
+		return bucket.NewLeakyLimiter(c.Capacity, c.Rate)
+	}
+}
+
+// FixedWindowConfig configures a fixed window rate limiter.
+type FixedWindowConfig struct {
+	Limit  uint32
+	Window time.Duration
+}
+
+func (c FixedWindowConfig) Name() string { return "fixed window" }
+
+func (c FixedWindowConfig) Build() registry.LimiterFactory {
+	w := c.Window
+	if w == 0 {
+		w = time.Hour
+	}
+
+	return func() registry.Limiter {
+		return window.NewFixedLimiter(c.Limit, w)
+	}
+}
+
+// Helper to create all strategies with given parameters.
+func allStrategies(capacity uint32, rate uint32, win time.Duration) []StrategyConfig {
+	return []StrategyConfig{
+		TokenBucketConfig{Capacity: capacity, Rate: rate},
+		LeakyBucketConfig{Capacity: capacity, Rate: rate},
+		FixedWindowConfig{Limit: capacity, Window: win},
+	}
 }
 
 func TestNewRegistry(t *testing.T) {
 	t.Parallel()
 
+	strategies := allStrategies(10, 2, time.Minute)
 	for _, s := range strategies {
-		t.Run(s.name, func(t *testing.T) {
+		t.Run(s.Name(), func(t *testing.T) {
 			t.Parallel()
 
-			reg, err := bucket.NewRegistry(s.factory(10, 2))
+			reg, err := registry.NewRegistry(s.Build())
 			require.NoError(t, err)
 			require.NotNil(t, reg)
 		})
@@ -49,11 +93,12 @@ func TestNewRegistry(t *testing.T) {
 func TestNewRegistry_WithUsers(t *testing.T) {
 	t.Parallel()
 
+	strategies := allStrategies(10, 2, time.Minute)
 	for _, s := range strategies {
-		t.Run(s.name, func(t *testing.T) {
+		t.Run(s.Name(), func(t *testing.T) {
 			t.Parallel()
 
-			reg, err := bucket.NewRegistry(s.factory(10, 2), "alice", "bob")
+			reg, err := registry.NewRegistry(s.Build(), "alice", "bob")
 			require.NoError(t, err)
 			require.NotNil(t, reg)
 		})
@@ -63,11 +108,12 @@ func TestNewRegistry_WithUsers(t *testing.T) {
 func TestRegistry_Allow_ExistingUser(t *testing.T) {
 	t.Parallel()
 
+	strategies := allStrategies(2, 0, time.Hour)
 	for _, s := range strategies {
-		t.Run(s.name, func(t *testing.T) {
+		t.Run(s.Name(), func(t *testing.T) {
 			t.Parallel()
 
-			reg, err := bucket.NewRegistry(s.factory(2, 0), "alice")
+			reg, err := registry.NewRegistry(s.Build(), "alice")
 			require.NoError(t, err)
 
 			require.True(t, reg.Allow("alice"))
@@ -80,11 +126,12 @@ func TestRegistry_Allow_ExistingUser(t *testing.T) {
 func TestRegistry_Allow_NewUser(t *testing.T) {
 	t.Parallel()
 
+	strategies := allStrategies(2, 0, time.Hour)
 	for _, s := range strategies {
-		t.Run(s.name, func(t *testing.T) {
+		t.Run(s.Name(), func(t *testing.T) {
 			t.Parallel()
 
-			reg, err := bucket.NewRegistry(s.factory(2, 0))
+			reg, err := registry.NewRegistry(s.Build())
 			require.NoError(t, err)
 
 			// First call for a new user should create limiter and allow
@@ -98,11 +145,12 @@ func TestRegistry_Allow_NewUser(t *testing.T) {
 func TestRegistry_Allow_IndependentUsers(t *testing.T) {
 	t.Parallel()
 
+	strategies := allStrategies(1, 0, time.Hour)
 	for _, s := range strategies {
-		t.Run(s.name, func(t *testing.T) {
+		t.Run(s.Name(), func(t *testing.T) {
 			t.Parallel()
 
-			reg, err := bucket.NewRegistry(s.factory(1, 0))
+			reg, err := registry.NewRegistry(s.Build())
 			require.NoError(t, err)
 
 			// Each user has their own bucket
@@ -119,11 +167,12 @@ func TestRegistry_Allow_IndependentUsers(t *testing.T) {
 func TestRegistry_Allow_Concurrent(t *testing.T) {
 	t.Parallel()
 
+	strategies := allStrategies(100, 0, time.Hour)
 	for _, s := range strategies {
-		t.Run(s.name, func(t *testing.T) {
+		t.Run(s.Name(), func(t *testing.T) {
 			t.Parallel()
 
-			reg, err := bucket.NewRegistry(s.factory(100, 0))
+			reg, err := registry.NewRegistry(s.Build())
 			require.NoError(t, err)
 
 			var (
@@ -132,12 +181,12 @@ func TestRegistry_Allow_Concurrent(t *testing.T) {
 			)
 
 			// 50 goroutines per user, 4 users = 200 goroutines
-			users := []bucket.Identifier{"alice", "bob", "charlie", "diana"}
+			users := []registry.Identifier{"alice", "bob", "charlie", "diana"}
 			for _, user := range users {
 				for range 50 {
 					wg.Add(1)
 
-					go func(u bucket.Identifier) {
+					go func(u registry.Identifier) {
 						defer wg.Done()
 
 						if reg.Allow(u) {
@@ -158,11 +207,12 @@ func TestRegistry_Allow_Concurrent(t *testing.T) {
 func TestRegistry_Deny_Concurrent(t *testing.T) {
 	t.Parallel()
 
+	strategies := allStrategies(100, 0, time.Hour)
 	for _, s := range strategies {
-		t.Run(s.name, func(t *testing.T) {
+		t.Run(s.Name(), func(t *testing.T) {
 			t.Parallel()
 
-			reg, err := bucket.NewRegistry(s.factory(100, 0))
+			reg, err := registry.NewRegistry(s.Build())
 			require.NoError(t, err)
 
 			var (
@@ -171,12 +221,12 @@ func TestRegistry_Deny_Concurrent(t *testing.T) {
 				wg      sync.WaitGroup
 			)
 
-			users := []bucket.Identifier{"alice", "bob", "charlie", "diana"}
+			users := []registry.Identifier{"alice", "bob", "charlie", "diana"}
 			for _, user := range users {
 				for range 110 {
 					wg.Add(1)
 
-					go func(u bucket.Identifier) {
+					go func(u registry.Identifier) {
 						defer wg.Done()
 
 						if reg.Allow(u) {
@@ -199,11 +249,12 @@ func TestRegistry_Deny_Concurrent(t *testing.T) {
 func TestRegistry_Allow_ConcurrentNewUsers(t *testing.T) {
 	t.Parallel()
 
+	strategies := allStrategies(5, 0, time.Hour)
 	for _, s := range strategies {
-		t.Run(s.name, func(t *testing.T) {
+		t.Run(s.Name(), func(t *testing.T) {
 			t.Parallel()
 
-			reg, err := bucket.NewRegistry(s.factory(5, 0))
+			reg, err := registry.NewRegistry(s.Build())
 			require.NoError(t, err)
 
 			var wg sync.WaitGroup
@@ -215,7 +266,7 @@ func TestRegistry_Allow_ConcurrentNewUsers(t *testing.T) {
 				go func(id int) {
 					defer wg.Done()
 
-					user := bucket.Identifier(rune('a' + id%26))
+					user := registry.Identifier(rune('a' + id%26))
 					reg.Allow(user)
 				}(i)
 			}
