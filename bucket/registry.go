@@ -7,24 +7,28 @@ import (
 type (
 	Identifier string
 	Registry   struct {
-		mu             sync.Mutex
-		limiters       map[Identifier]*TokenLimiter
-		capacity, rate uint32
+		mu       sync.Mutex
+		factory  LimiterFactory
+		limiters map[Identifier]Limiter
 	}
 )
 
-func NewRegistry(capacity, rate uint32, users ...Identifier) (*Registry, error) {
-	limiters := make(map[Identifier]*TokenLimiter)
+type Limiter interface {
+	Allow() bool
+}
 
-	for _, user := range users {
-		limiter := NewLimiter(capacity, rate)
-		limiters[user] = limiter
+type LimiterFactory func() Limiter
+
+func NewRegistry(factory LimiterFactory, keys ...Identifier) (*Registry, error) {
+	limiters := make(map[Identifier]Limiter)
+
+	for _, key := range keys {
+		limiters[key] = factory()
 	}
 
 	return &Registry{
 		limiters: limiters,
-		capacity: capacity,
-		rate:     rate,
+		factory:  factory,
 	}, nil
 }
 
@@ -34,7 +38,7 @@ func (r *Registry) Allow(key Identifier) bool {
 
 	lim, ok := r.limiters[key]
 	if !ok {
-		lim = NewLimiter(r.capacity, r.rate)
+		lim = r.factory()
 		r.limiters[key] = lim
 	}
 
