@@ -4,9 +4,11 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/serroba/rate/bucket"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLeakyLimiter_Allow(t *testing.T) {
@@ -69,4 +71,58 @@ func TestLeakyLimiter_Allow_Concurrent(t *testing.T) {
 
 	assert.Equal(t, int64(10), allow.Load())
 	assert.Equal(t, int64(5), deny.Load())
+}
+
+func TestLeakyLimiter_Allow_ClockGoesBackwards(t *testing.T) {
+	t.Parallel()
+
+	clock := &testClock{now: time.Now()}
+	lim := bucket.NewLeakyLimiterWithClock(1, 1, clock)
+
+	// Fill the bucket
+	require.True(t, lim.Allow())
+	require.False(t, lim.Allow())
+
+	// Move clock backwards - should not drain
+	clock.now = clock.now.Add(-1 * time.Second)
+
+	require.False(t, lim.Allow())
+}
+
+func TestLeakyLimiter_Allow_Drains(t *testing.T) {
+	t.Parallel()
+
+	clock := &testClock{now: time.Now()}
+	lim := bucket.NewLeakyLimiterWithClock(2, 2, clock) // drains 2 per second
+
+	// Fill the bucket
+	require.True(t, lim.Allow())
+	require.True(t, lim.Allow())
+	require.False(t, lim.Allow())
+
+	// Advance 1 second - should drain 2, bucket now empty
+	clock.advance(1 * time.Second)
+
+	// Can fill again
+	require.True(t, lim.Allow())
+	require.True(t, lim.Allow())
+	require.False(t, lim.Allow())
+}
+
+func TestLeakyLimiter_Allow_PartialDrain(t *testing.T) {
+	t.Parallel()
+
+	clock := &testClock{now: time.Now()}
+	lim := bucket.NewLeakyLimiterWithClock(2, 2, clock) // drains 2 per second
+
+	// Fill the bucket
+	require.True(t, lim.Allow())
+	require.True(t, lim.Allow())
+	require.False(t, lim.Allow())
+
+	// Advance 0.5 seconds - should drain 1, leaving room for 1
+	clock.advance(500 * time.Millisecond)
+
+	require.True(t, lim.Allow())
+	require.False(t, lim.Allow())
 }

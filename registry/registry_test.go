@@ -21,48 +21,48 @@ type StrategyConfig interface {
 
 // TokenBucketConfig configures a token bucket rate limiter.
 type TokenBucketConfig struct {
-	Capacity uint32
-	Rate     uint32
+	capacity uint32
+	rate     uint32
 }
 
 func (c TokenBucketConfig) Name() string { return "token bucket" }
 
 func (c TokenBucketConfig) Build() registry.LimiterFactory {
 	return func() registry.Limiter {
-		return bucket.NewTokenLimiter(c.Capacity, c.Rate)
+		return bucket.NewTokenLimiter(c.capacity, c.rate)
 	}
 }
 
 // LeakyBucketConfig configures a leaky bucket rate limiter.
 type LeakyBucketConfig struct {
-	Capacity uint32
-	Rate     uint32
+	capacity uint32
+	rate     uint32
 }
 
 func (c LeakyBucketConfig) Name() string { return "leaky bucket" }
 
 func (c LeakyBucketConfig) Build() registry.LimiterFactory {
 	return func() registry.Limiter {
-		return bucket.NewLeakyLimiter(c.Capacity, c.Rate)
+		return bucket.NewLeakyLimiter(c.capacity, c.rate)
 	}
 }
 
 // FixedWindowConfig configures a fixed window rate limiter.
 type FixedWindowConfig struct {
-	Limit  uint32
-	Window time.Duration
+	limit  uint32
+	window time.Duration
 }
 
 func (c FixedWindowConfig) Name() string { return "fixed window" }
 
 func (c FixedWindowConfig) Build() registry.LimiterFactory {
-	w := c.Window
+	w := c.window
 	if w == 0 {
 		w = time.Hour
 	}
 
 	return func() registry.Limiter {
-		return window.NewFixedLimiter(c.Limit, w)
+		return window.NewFixedLimiter(c.limit, w)
 	}
 }
 
@@ -82,9 +82,9 @@ func (s SlidingWindowConfig) Build() registry.LimiterFactory {
 // Helper to create all strategies with given parameters.
 func allStrategies(capacity uint32, rate uint32, win time.Duration) []StrategyConfig {
 	return []StrategyConfig{
-		TokenBucketConfig{Capacity: capacity, Rate: rate},
-		LeakyBucketConfig{Capacity: capacity, Rate: rate},
-		FixedWindowConfig{Limit: capacity, Window: win},
+		TokenBucketConfig{capacity: capacity, rate: rate},
+		LeakyBucketConfig{capacity: capacity, rate: rate},
+		FixedWindowConfig{limit: capacity, window: win},
 		SlidingWindowConfig{limit: capacity, duration: win},
 	}
 }
