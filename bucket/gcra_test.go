@@ -108,8 +108,10 @@ func TestGCRALimiter_Allow_Concurrent(t *testing.T) {
 
 	for range 200 {
 		wg.Add(1)
+
 		go func() {
 			defer wg.Done()
+
 			if lim.Allow() {
 				allowed.Add(1)
 			}

@@ -31,6 +31,7 @@ func NewGCRALimiterWithClock(rate float64, burst uint32, clock clock) *GCRALimit
 	if rate <= 0 {
 		rate = 1
 	}
+
 	if burst == 0 {
 		burst = 1
 	}
@@ -59,6 +60,7 @@ func (l *GCRALimiter) Allow() bool {
 	if now.After(newTAT) {
 		newTAT = now
 	}
+
 	newTAT = newTAT.Add(l.emission)
 
 	// Allow if newTAT - limit <= now
@@ -69,5 +71,6 @@ func (l *GCRALimiter) Allow() bool {
 	}
 
 	l.tat = newTAT
+
 	return true
 }
