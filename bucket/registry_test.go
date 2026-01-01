@@ -1,29 +1,29 @@
-package token_test
+package bucket_test
 
 import (
 	"sync"
 	"sync/atomic"
 	"testing"
 
-	"github.com/serroba/rate/token"
+	"github.com/serroba/rate/bucket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNewRegistry(t *testing.T) {
-	reg, err := token.NewRegistry(10, 2)
+	reg, err := bucket.NewRegistry(10, 2)
 	require.NoError(t, err)
 	require.NotNil(t, reg)
 }
 
 func TestNewRegistry_WithUsers(t *testing.T) {
-	reg, err := token.NewRegistry(10, 2, "alice", "bob")
+	reg, err := bucket.NewRegistry(10, 2, "alice", "bob")
 	require.NoError(t, err)
 	require.NotNil(t, reg)
 }
 
 func TestRegistry_Allow_ExistingUser(t *testing.T) {
-	reg, err := token.NewRegistry(2, 0, "alice")
+	reg, err := bucket.NewRegistry(2, 0, "alice")
 	require.NoError(t, err)
 
 	require.True(t, reg.Allow("alice"))
@@ -32,7 +32,7 @@ func TestRegistry_Allow_ExistingUser(t *testing.T) {
 }
 
 func TestRegistry_Allow_NewUser(t *testing.T) {
-	reg, err := token.NewRegistry(2, 0)
+	reg, err := bucket.NewRegistry(2, 0)
 	require.NoError(t, err)
 
 	// First call for a new user should create limiter and allow
@@ -42,7 +42,7 @@ func TestRegistry_Allow_NewUser(t *testing.T) {
 }
 
 func TestRegistry_Allow_IndependentUsers(t *testing.T) {
-	reg, err := token.NewRegistry(1, 0)
+	reg, err := bucket.NewRegistry(1, 0)
 	require.NoError(t, err)
 
 	// Each user has their own bucket
@@ -55,7 +55,7 @@ func TestRegistry_Allow_IndependentUsers(t *testing.T) {
 }
 
 func TestRegistry_Allow_Concurrent(t *testing.T) {
-	reg, err := token.NewRegistry(100, 0)
+	reg, err := bucket.NewRegistry(100, 0)
 	require.NoError(t, err)
 
 	var (
@@ -64,12 +64,12 @@ func TestRegistry_Allow_Concurrent(t *testing.T) {
 	)
 
 	// 50 goroutines per user, 4 users = 200 goroutines
-	users := []token.Identifier{"alice", "bob", "charlie", "diana"}
+	users := []bucket.Identifier{"alice", "bob", "charlie", "diana"}
 	for _, user := range users {
 		for range 50 {
 			wg.Add(1)
 
-			go func(u token.Identifier) {
+			go func(u bucket.Identifier) {
 				defer wg.Done()
 
 				if reg.Allow(u) {
@@ -86,7 +86,7 @@ func TestRegistry_Allow_Concurrent(t *testing.T) {
 }
 
 func TestRegistry_Deny_Concurrent(t *testing.T) {
-	reg, err := token.NewRegistry(100, 0)
+	reg, err := bucket.NewRegistry(100, 0)
 	require.NoError(t, err)
 
 	var (
@@ -96,12 +96,12 @@ func TestRegistry_Deny_Concurrent(t *testing.T) {
 	)
 
 	// 50 goroutines per user, 4 users = 200 goroutines
-	users := []token.Identifier{"alice", "bob", "charlie", "diana"}
+	users := []bucket.Identifier{"alice", "bob", "charlie", "diana"}
 	for _, user := range users {
 		for range 110 {
 			wg.Add(1)
 
-			go func(u token.Identifier) {
+			go func(u bucket.Identifier) {
 				defer wg.Done()
 
 				if reg.Allow(u) {
@@ -121,7 +121,7 @@ func TestRegistry_Deny_Concurrent(t *testing.T) {
 }
 
 func TestRegistry_Allow_ConcurrentNewUsers(t *testing.T) {
-	reg, err := token.NewRegistry(5, 0)
+	reg, err := bucket.NewRegistry(5, 0)
 	require.NoError(t, err)
 
 	var wg sync.WaitGroup
@@ -133,7 +133,7 @@ func TestRegistry_Allow_ConcurrentNewUsers(t *testing.T) {
 		go func(id int) {
 			defer wg.Done()
 
-			user := token.Identifier(rune('a' + id%26))
+			user := bucket.Identifier(rune('a' + id%26))
 			reg.Allow(user)
 		}(i)
 	}

@@ -1,4 +1,4 @@
-package token
+package bucket
 
 import (
 	"sync"
@@ -8,13 +8,13 @@ type (
 	Identifier string
 	Registry   struct {
 		mu             sync.Mutex
-		limiters       map[Identifier]*Limiter
+		limiters       map[Identifier]*TokenLimiter
 		capacity, rate uint32
 	}
 )
 
 func NewRegistry(capacity, rate uint32, users ...Identifier) (*Registry, error) {
-	limiters := make(map[Identifier]*Limiter)
+	limiters := make(map[Identifier]*TokenLimiter)
 
 	for _, user := range users {
 		limiter := NewLimiter(capacity, rate)

@@ -1,4 +1,4 @@
-package token
+package bucket
 
 import (
 	"sync"
@@ -15,9 +15,9 @@ func (c realClock) Now() time.Time {
 	return time.Now()
 }
 
-// Limiter implements a token bucket rate limiter. It allows a burst of
+// TokenLimiter implements a bucket rate limiter. It allows a burst of
 // requests up to capacity, then refills tokens at the specified rate per second.
-type Limiter struct {
+type TokenLimiter struct {
 	mu                     sync.Mutex
 	capacity, tokens, rate float64
 	lastRefillAt           time.Time
@@ -26,14 +26,14 @@ type Limiter struct {
 
 // NewLimiter creates a new rate limiter with the given capacity and refill rate.
 // Capacity is the maximum burst size. Rate is tokens added per second.
-func NewLimiter(capacity, rate uint32) *Limiter {
+func NewLimiter(capacity, rate uint32) *TokenLimiter {
 	return NewLimiterWithClock(capacity, rate, realClock{})
 }
 
 // NewLimiterWithClock creates a new rate limiter with a custom clock.
 // Use this constructor for testing with a mock clock.
-func NewLimiterWithClock(capacity, rate uint32, clock clock) *Limiter {
-	return &Limiter{
+func NewLimiterWithClock(capacity, rate uint32, clock clock) *TokenLimiter {
+	return &TokenLimiter{
 		capacity:     float64(capacity),
 		tokens:       float64(capacity),
 		rate:         float64(rate),
@@ -42,10 +42,10 @@ func NewLimiterWithClock(capacity, rate uint32, clock clock) *Limiter {
 	}
 }
 
-// Allow reports whether a request is allowed. It consumes one token if
+// Allow reports whether a request is allowed. It consumes one bucket if
 // available and returns true. If no tokens are available, it returns false
 // without blocking.
-func (lim *Limiter) Allow() bool {
+func (lim *TokenLimiter) Allow() bool {
 	lim.mu.Lock()
 	defer lim.mu.Unlock()
 
@@ -60,7 +60,7 @@ func (lim *Limiter) Allow() bool {
 	return false
 }
 
-func (lim *Limiter) refill() {
+func (lim *TokenLimiter) refill() {
 	t := lim.clock.Now()
 	if t.Before(lim.lastRefillAt) {
 		return
