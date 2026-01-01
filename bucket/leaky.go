@@ -13,20 +13,28 @@ type LeakyLimiter struct {
 
 	capacity, level, rate float64
 	lastUpdatedAt         time.Time
+	clock                 clock
 }
 
 // NewLeakyLimiter creates a new leaky bucket limiter.
 // Capacity is the maximum bucket size. Rate is how many requests drain per second.
 func NewLeakyLimiter(capacity, rate uint32) *LeakyLimiter {
+	return NewLeakyLimiterWithClock(capacity, rate, realClock{})
+}
+
+// NewLeakyLimiterWithClock creates a new leaky bucket limiter with a custom clock.
+// Use this constructor for testing with a mock clock.
+func NewLeakyLimiterWithClock(capacity, rate uint32, clock clock) *LeakyLimiter {
 	return &LeakyLimiter{
 		capacity:      float64(capacity),
 		rate:          float64(rate),
-		lastUpdatedAt: time.Now(),
+		clock:         clock,
+		lastUpdatedAt: clock.Now(),
 	}
 }
 
 func (lim *LeakyLimiter) update() {
-	t := time.Now()
+	t := lim.clock.Now()
 	if t.Before(lim.lastUpdatedAt) {
 		return
 	}
