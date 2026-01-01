@@ -98,8 +98,8 @@ func TestGCRALimiter_Allow_IdleAccumulatesCredit(t *testing.T) {
 func TestGCRALimiter_Allow_Concurrent(t *testing.T) {
 	t.Parallel()
 
-	// 1000 requests/second, burst of 100
-	lim := bucket.NewGCRALimiter(1000, 100)
+	// Very low rate (no refill during test), burst of 100
+	lim := bucket.NewGCRALimiter(0.001, 100)
 
 	var (
 		allowed atomic.Int64
