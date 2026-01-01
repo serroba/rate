@@ -24,9 +24,9 @@ type TokenLimiter struct {
 	clock                  clock
 }
 
-// NewLimiter creates a new rate limiter with the given capacity and refill rate.
+// NewTokenLimiter creates a new rate limiter with the given capacity and refill rate.
 // Capacity is the maximum burst size. Rate is tokens added per second.
-func NewLimiter(capacity, rate uint32) *TokenLimiter {
+func NewTokenLimiter(capacity, rate uint32) *TokenLimiter {
 	return NewLimiterWithClock(capacity, rate, realClock{})
 }
 

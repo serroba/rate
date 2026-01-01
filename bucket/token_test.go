@@ -90,7 +90,7 @@ func TestLimiter_Allow(t *testing.T) {
 }
 
 func TestLimiter_Allow_Concurrent(t *testing.T) {
-	lim := bucket.NewLimiter(100, 0)
+	lim := bucket.NewTokenLimiter(100, 0)
 
 	var (
 		allowed atomic.Int64
