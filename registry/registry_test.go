@@ -79,13 +79,34 @@ func (s SlidingWindowConfig) Build() registry.LimiterFactory {
 	}
 }
 
+// GCRAConfig configures a GCRA (Generic Cell Rate Algorithm) rate limiter.
+type GCRAConfig struct {
+	rate  float64
+	burst uint32
+}
+
+func (c GCRAConfig) Name() string { return "gcra" }
+
+func (c GCRAConfig) Build() registry.LimiterFactory {
+	return func() registry.Limiter {
+		return bucket.NewGCRALimiter(c.rate, c.burst)
+	}
+}
+
 // Helper to create all strategies with given parameters.
 func allStrategies(capacity uint32, rate uint32, win time.Duration) []StrategyConfig {
+	// For GCRA: when rate=0 (no refill for testing), use very low rate
+	gcraRate := float64(rate)
+	if gcraRate == 0 {
+		gcraRate = 0.001 // Essentially no refill during test
+	}
+
 	return []StrategyConfig{
 		TokenBucketConfig{capacity: capacity, rate: rate},
 		LeakyBucketConfig{capacity: capacity, rate: rate},
 		FixedWindowConfig{limit: capacity, window: win},
 		SlidingWindowConfig{limit: capacity, duration: win},
+		GCRAConfig{rate: gcraRate, burst: capacity},
 	}
 }
 
