@@ -66,12 +66,26 @@ func (c FixedWindowConfig) Build() registry.LimiterFactory {
 	}
 }
 
+type SlidingWindowConfig struct {
+	limit    uint32
+	duration time.Duration
+}
+
+func (s SlidingWindowConfig) Name() string { return "sliding window" }
+
+func (s SlidingWindowConfig) Build() registry.LimiterFactory {
+	return func() registry.Limiter {
+		return window.NewSlidingLimiter(s.limit, s.duration)
+	}
+}
+
 // Helper to create all strategies with given parameters.
 func allStrategies(capacity uint32, rate uint32, win time.Duration) []StrategyConfig {
 	return []StrategyConfig{
 		TokenBucketConfig{Capacity: capacity, Rate: rate},
 		LeakyBucketConfig{Capacity: capacity, Rate: rate},
 		FixedWindowConfig{Limit: capacity, Window: win},
+		SlidingWindowConfig{limit: capacity, duration: win},
 	}
 }
 
